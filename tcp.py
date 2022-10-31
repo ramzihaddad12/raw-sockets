@@ -62,7 +62,7 @@ class TCPSocket(IPSocket):
             print(packet)
             data = self.parsePacket(packet)
             if data != None and data != "":
-                self.recv_buf += data
+                self.recv_buf += data.decode("utf-8") 
         return self.recv_buf
 
     #Receive an individual packet
@@ -310,8 +310,16 @@ class TCPPacket(object):
                         total_length)
 
         # Construct the checksumless packet
+        print(type(pseudo_header))
+        print(type(header))
+        print(type(self.data))
+        print(self.data)
+        print(len(self.data) == 0)
 
-        packet = pseudo_header + header + self.data
+        if len(self.data) == 0:
+            packet = pseudo_header + header
+        else:
+            packet = pseudo_header + header + self.data
 
         # Calculate the checksum of the checksumless packet
 
@@ -327,7 +335,9 @@ class TCPPacket(object):
                  data_offset,
                  flags, 
                  self.window) + struct.pack("H", checksum) + struct.pack("!H", self.urgent_pointer)
-
+        if len(self.data) == 0:
+            return header
+        
         return header + self.data
 
     def isValid(self, source_address, dest_address,  dest_port):

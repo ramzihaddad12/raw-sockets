@@ -30,8 +30,8 @@ class EthernetSocket(object):
 	
 
 	def __init__(self):
-		self.broadcast_mac = "\xff\xff\xff\xff\xff\xff"
-		self.my_mac = "\x08\x00\x27\x3f\x8e\x5a"#"\x08\x00'?\x8eZ"
+		self.broadcast_mac = b"\xff\xff\xff\xff\xff\xff"
+		self.my_mac = b"\x08\x00\x27\x3f\x8e\x5a"#"\x08\x00'?\x8eZ"
 		print('get_mac_addr()', get_mac_addr())
 		
 		#We can only send to the broadcast mac until we know where the gateway is
@@ -54,8 +54,9 @@ class EthernetSocket(object):
 	#Construct ethernet frame header and send data
 	def send(self, data, eth_type = 0x0800):
 		print(self.dest_mac, self.src_mac, eth_type)
-		print(type(self.dest_mac), type(self.src_mac), type(eth_type))
-		header = struct.pack("!6s6sH", str.encode(self.dest_mac), str.encode(self.src_mac), eth_type)#str.encode(
+		# print(str.encode(self.dest_mac), str.encode(self.src_mac), eth_type)
+		# print(type(self.dest_mac), type(self.src_mac), type(eth_type))
+		header = struct.pack("!6s6sH", self.dest_mac, self.src_mac, eth_type)#str.encode(
 		#pack to minimum length
 		if len(data) < 46:
 			print(type(data))
@@ -92,10 +93,10 @@ class EthernetSocket(object):
 		eth_type = unpacked[2]
 		print('^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^')
 		print('dest_mac: ', dest_mac)
-		print('self.src_mac: ', str.encode(self.src_mac))
+		# print('self.src_mac: ', str.encode(self.src_mac))
 		print(prettify(dest_mac))
 		print("08:00:27:3f:8e:5a")
-		print(prettify(str.encode(self.my_mac)))
+		# print(prettify(str.encode(self.my_mac)))
 		print('self.dest_mac: ', "\xff\xff\xff\xff\xff\xff")
 		print('src_mac: ', src_mac)
 		print('eth_type: ', eth_type)
@@ -112,7 +113,7 @@ class EthernetSocket(object):
 
 		#If we are still arping, we don't have a dest_mac set yet
 		if desired_type != EthernetSocket.ETH_P_ARP:
-			if str.encode(self.dest_mac) != src_mac:
+			if self.dest_mac != src_mac:
 				print("HEREEE3")
 				return False
 
@@ -181,9 +182,9 @@ class ArpPacket(object):
 			self.HLEN = 6 #length of ethernet address
 			self.PLEN = 4 #length of ip address
 			self.operation = 1 #1 for request, 2 for reply
-			self.SHA = "\x00\x00\x00\x00\x00\x00" #sender hardware address
+			self.SHA = b"\x00\x00\x00\x00\x00\x00" #sender hardware address
 			self.SPA = 0 #ip addr as int
-			self.THA = "\x00\x00\x00\x00\x00\x00" #target hardware address, doesn't matter for request
+			self.THA = b"\x00\x00\x00\x00\x00\x00" #target hardware address, doesn't matter for request
 			self.TPA = 0 #target protocol address, address to lookup in request
 		else:
 			unpacked = struct.unpack("!HHBBHLL", data[:8] + data[14:18] + data[24:28])
@@ -208,6 +209,6 @@ class ArpPacket(object):
 		print(type(self.SHA))
 		print(type(self.THA))
 		data = struct.pack("!HHBBH6sL6sL", self.HTYPE, self.PTYPE, self.HLEN, self.PLEN, self.operation,
-				str.encode(self.SHA), self.SPA, str.encode(self.THA), self.TPA)
+				self.SHA, self.SPA, self.THA, self.TPA)
 
 		return data

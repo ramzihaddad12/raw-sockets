@@ -13,7 +13,7 @@ def getRequestForURL(url):
 
     request = "GET " + (path if (path != None and path != "") else "/") + " HTTP/1.1\r" + NL + "Host: " + host + CRLF
 
-    return request
+    return str.encode(request)
 
 #given an http response parse it and write to disk
 def saveResponse(http_response, url):
