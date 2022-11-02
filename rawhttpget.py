@@ -1,28 +1,18 @@
-import sys, os, socket
-import urllib.parse
-import tcp
-import struct
-import _http
+import sys
 
+# ensure another argument given (for URL)
+if len(sys.argv) < 2:
+    sys.exit('The URL representing the html to download must be specified.')
 url = sys.argv[1]
-host_name = urllib.parse.urlparse(url).hostname
 
-#Construct our socket
-s = tcp.TCPSocket()
-#Connect to the remote host
-s.connect((host_name, 80))
+# create socket and connect
+sock = tcp.TCPSocket()
+host = urlparse(url).hostname
+port = 80
+sock.connect((host, port))
 
-#Create request
-request = _http.getRequestForURL(url)
+# save http to directory
+http.download_response(http.get_request(sock, url))
 
-#Send request to host
-s.send(request)
-
-#Get all data from the request
-response = s.recvall()
-
-#Save data to disk
-_http.saveResponse(response, url)
-
-#Close the socket
-s.close()
+# close socket
+sock.close()
