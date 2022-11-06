@@ -1,7 +1,4 @@
-import sys, os, random
-import struct
-import utils
-import socket
+import random, struct, socket, constants
 from data_link_layer import EthernetSocket
 
 # Function to calculate the checksum
@@ -111,12 +108,12 @@ class IPSocket():
         return self.ethernet_socket.send_data(ip_packet)
 
     # Function that receives data using IP
-    def receive(self, bufsize):
+    def receive(self):
         received = None
 
         while received == None:
             # get packet from data link layer 
-            ip_packet = self.ethernet_socket.receive(65536)
+            ip_packet = self.ethernet_socket.receive(constants.MAX_INT16 + 1)
             ip_header = ip_packet[:20]
             parsed_ip_header = self.parse_packet_to_ip_header(ip_header)
 

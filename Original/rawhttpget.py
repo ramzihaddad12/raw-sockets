@@ -1,14 +1,13 @@
-import sys, os, socket
+import sys
 import urllib.parse
-import tcp
-import struct
+import transport_layer
 import _http
 
 url = sys.argv[1]
 host_name = urllib.parse.urlparse(url).hostname
 
 #Construct our socket
-s = tcp.TCPSocket()
+s = transport_layer.TCPSocket()
 #Connect to the remote host
 s.connect((host_name, 80))
 

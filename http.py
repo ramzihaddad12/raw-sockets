@@ -1,4 +1,4 @@
-import sys, re, constants, tcp
+import sys, re, constants, transport_layer
 from urllib.parse import urlparse
 
 # Write http response to a file
@@ -18,7 +18,7 @@ def download(url):
 
 # Create custom TCP socket and connect
 def socket_connect(host, port=80):
-    sock = tcp.TCPSocket()
+    sock = transport_layer.TCPSocket()
     sock.connect(host, port)
     return sock
 
@@ -26,7 +26,7 @@ def socket_connect(host, port=80):
 # Send a get request, return the response
 def get_request(sock, url):
     sock.send(form_get_request(url))
-    resp = sock.recv_all()
+    resp = sock.recvall()
     return resp
 
 

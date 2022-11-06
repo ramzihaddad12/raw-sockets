@@ -1,4 +1,4 @@
-import sys, re, constants, transport_layer
+import sys, re, constants
 from urllib.parse import urlparse
 from transport_layer import TransportSocket
 
