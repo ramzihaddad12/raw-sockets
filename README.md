@@ -25,6 +25,9 @@ Our high level approach was to split the work between the individual layers (app
 ## Challenges Faced
 - Validating and building checksums
 - Correctly shifting and `operator&` bits to get the data we wanted when unpacking
+- Learning how the IP pseudoheader works to calculate the checksum
+- Learning about how ARP packets are structured
+- Sending and receiving packets successfully through ethernet 
 
 ## Work Distribution
 We decided early on that we wanted to tackle the extra credit, so we distributed the work based on layers. Ramzi primarily worked on the lower layers (data link and network), while John primarily worked on the higher layers (transport and application). We knew the assignment was lengthy so we wanted to work in parallel as much as possible, so we discussed high-level functionality that we'd expect from the network and transport layers so we could work concurrently while limiting how much we blocked each other. After putting our parts together, we used Wireshark to debug our code and make the appropriate changes to the corresponding layers.
