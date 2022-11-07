@@ -20,15 +20,16 @@ def download(url):
 
 # Create custom TCP socket and connect
 def socket_connect(host, port=80):
+    print("HOST: {}".format(host))
     sock = TransportSocket()
-    sock.connect(host, port)
+    sock.connect((host, port))
     return sock
 
 
 # Send a get request, return the response
 def send_get_request(sock, url):
-    sock.send(build_http_get_request(url))
-    resp = sock.recv_all()
+    sock.send_data(build_http_get_request(url))
+    resp = sock.receive_all()
     return resp
 
 

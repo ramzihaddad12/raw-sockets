@@ -5,7 +5,7 @@ from constants import ETH_P_ALL, ETH_P_ARP, ETH_P_IP, MIN_ETHERNET_SIZE
 def get_interface():
 	output = subprocess.getoutput("ifconfig ")
 	# Parse the command output to find the interface
-	print(output[:6])
+	return output[:6]
 
 # Function that gets the source MAC Address using the ifconfig command
 def get_source_mac_address(interface):
@@ -34,7 +34,7 @@ class EthernetSocket():
 		self.socket_recver = socket.socket(socket.AF_PACKET, socket.SOCK_RAW, socket.htons(ETH_P_ALL))
 
 		self.interface = get_interface()
-		self.source_mac =  get_source_mac_address()
+		self.source_mac =  get_source_mac_address(self.interface)
 
 		# destination MAC address initially is the broadcast MAC
 		self.dest_mac = b"\xff\xff\xff\xff\xff\xff"
@@ -79,8 +79,10 @@ class EthernetSocket():
 	def send_data(self, data, ether_type = ETH_P_IP):
 		# build ethernet header 
 		ethernet_header = struct.pack("!6s6sH", self.dest_mac, self.source_mac, ether_type)
-
-
+		print("SENDING: " )
+		print(self.source_mac)
+		print(ethernet_header)
+		print(data)
 		if len(data) >= MIN_ETHERNET_SIZE:
 			self.socket_sender.sendto(ethernet_header + data, (self.interface,0))
 
@@ -101,9 +103,14 @@ class EthernetSocket():
 			packet_source_mac = struct.unpack("!6s6sH", received_data[:14])[1]
 			packet_ether_type = struct.unpack("!6s6sH", received_data[:14])[2]
 
-			# check if the packet corresponds to the source MAC address (check if the packet is meant to the local machine)
-			if packet_dest_mac == self.source_mac and ether_type == packet_ether_type :
+			# print("packet_dest_mac: {}".format(packet_dest_mac))
+			# print("self.source_mac: {}".format(self.source_mac))	
 
+			# check if the packet corresponds to the source MAC address (check if the packet is meant to the local machine)
+			if packet_dest_mac != self.source_mac or ether_type != packet_ether_type :
+				received = None
+
+			else:
 				if ether_type != ETH_P_ARP and packet_source_mac != self.dest_mac:
 					received = None
 				else:
@@ -131,7 +138,7 @@ class EthernetSocket():
 
 		while response == None:
 
-			packet = self.receive(1500, ether_type = EthernetSocket.ETH_P_ARP)
+			packet = self.receive(ether_type = ETH_P_ARP)
 			arp_packet = self.parse_packet_to_arp_packet(packet)
 			
 			# check if received ARP packet is meant for this source and that it is a response packet (OPER = 2)
@@ -141,6 +148,7 @@ class EthernetSocket():
 		
 		# once ARP packet is received, we now know the destination MAC address and we can change it from the broadcast MAC to the needed one
 		self.dest_mac = response["SHA"]
+		print("self.dest_mac: {}".format(self.dest_mac))
 	
 	# Function to close sender & receiving sockets
 	def close_all(self):

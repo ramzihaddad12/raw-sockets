@@ -1,27 +1,5 @@
 import random, constants, struct, socket, utils, threading, network_layer
 
-
-''' from: https://www.binarytides.com/raw-sockets-c-code-linux/
-0                   1                   2                   3
-0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-|          Source Port          |       Destination Port        |
-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-|                        Sequence Number                        |
-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-|                    Acknowledgment Number                      |
-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-|  Data |           |U|A|P|R|S|F|                               |
-| Offset| Reserved  |R|C|S|S|Y|I|            Window             |
-|       |           |G|K|H|T|N|N|                               |
-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-|           Checksum            |         Urgent Pointer        |
-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-|                    Options                    |    Padding    |
-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-|                             data                              |
-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-'''
 class TCPPacket:
     def __init__(self, src_port, dst_port, seq_no, ack_no, window, ack, syn, fin, data):
         # set attributes for class based on TCP packet above
@@ -113,7 +91,7 @@ class TCPPacket:
         self.checksum = self.get_checksum(source_ip, dest_ip)
         
         packet = self.encode_header()
-        if self.data > 0:
+        if len(self.data) > 0:
             packet += self.data
 
         return packet
@@ -123,11 +101,13 @@ class TCPPacket:
     def is_valid_port(self, dst_port):
         return self.destination_port == dst_port
 
-
-    def unpack(self, packet):
-        unpacked_packet = struct.unpack('!HHLLBBHHH', packet[:16])
+    @staticmethod
+    def unpack(packet):
+        unpacked_packet = struct.unpack('!HHLLBBH', packet[:16])
         unpacked_checksum = struct.unpack('H', packet[16:18])
         data = packet[20:]
+
+        print("DATA: {}".format(data))
 
         source_ip = unpacked_packet[0]
         dest_ip = unpacked_packet[1]
@@ -176,8 +156,14 @@ class TransportSocket:
     # connect with host and port
     def connect(self, socket_addr):
         host, self.dest_port = socket_addr
+        hostname = socket.gethostname()
+
+        print("socket.gethostbyname(hostname): {}".format(socket.gethostbyname(host)))
+
         self.ip_socket.connect(socket.gethostbyname(host))
+        print("CONNECTION DONE")
         self.send_syn()
+
 
 
     # if packet times out, resend it and reset cwnd
@@ -200,9 +186,10 @@ class TransportSocket:
     # receive a single packet, filter out packets not destined to us
     def receive(self):
         received = self.ip_socket.receive()
-        if self.dest_port == self.source_port:
-            return self.parse_packet(received)
-        return None
+        print("received: {}".format(received))
+        # if self.dest_port == self.source_port:
+        return self.parse_packet(received)
+        # return None
 
     
     # parse packet for flags, return data if not fin
@@ -223,7 +210,8 @@ class TransportSocket:
             self.receive_buffer.append(packet)
             self.receive_buffer.sort(key = lambda packet: (self.get_next_sequence_no(packet.sequence_number, -self.ack_number)))
 
-        self.handle_flagged_packets(packet)
+        self.check_ack(packet)
+        self.check_fin(packet)
         if not self.fin_received:
             return self.read_packet(packet)
 
@@ -286,11 +274,17 @@ class TransportSocket:
             break # why?
 
         self.send_ack()
-        return data    
+        return data   
 
+    #
+    def send_data(self, data):
+        packet = TCPPacket(self.source_port, self.dest_port, self.sequence_number, self.ack_number, self.cwnd, 1, 0, 0, data)
+        self.send(packet)
 
     # send the given packet
     def send(self, packet, append_window = True):
+        # packet = TCPPacket(self.source_port, self.dest_port, self.sequence_number, self.ack_number, self.window_size, 1, 0, 0, data)
+        # (, src_port, dst_port, seq_no, ack_no, window, ack, syn, fin, data)
         data_len = 1 if packet.syn == 1 or packet.fin == 1 else len(packet.data)
         ack_number = self.get_next_sequence_no(packet.sequence_number, data_len)
 
@@ -299,6 +293,10 @@ class TransportSocket:
         if append_window:
             self.inflight_packets.append(inflight_packet)
 
+        # data = inflight_packet.packet.build(
+        #     self.ip_socket.source_ip_address,
+        #     self.ip_socket.dest_ip_address
+        # )
         data = inflight_packet.packet.build(
             self.ip_socket.source_ip_address,
             self.ip_socket.dest_ip_address
@@ -324,16 +322,19 @@ class TransportSocket:
             syn,
             fin,
             ''
-        )
+            )
 
 
     # send a syn packet and get response
     def send_syn(self):
         syn_packet = self.basic_tcppacket_builder(0, 1, 0)
+        print("SEND_SYN")
         self.send(syn_packet)
-
+        print("SEND_SYN2")
         while not self.connected:
+            print("HERE")
             self.receive()
+
 
     
     # send a fin packet
