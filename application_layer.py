@@ -12,6 +12,7 @@ def download(url):
     if get_http_status(resp) == 200:
         file = open(get_filename(url), 'w')
         body_start = resp.find(constants.END) + 4
+        # body_start = resp.find('<!DOCTYPE html>')
         file.write(resp[body_start:])
         file.close()
     else:

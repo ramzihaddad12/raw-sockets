@@ -1,4 +1,4 @@
-import constants, struct, socket, utils, network_layer, random, threading
+import constants, struct, socket, utils, network_layer, random, threading, re
 
 class TCPPacket:
     def __init__(self, src_port, dst_port, seq_no, ack_no, window, ack, syn, fin, data):
@@ -49,21 +49,7 @@ class TCPPacket:
         self.checksum = 0
         checksumless_header = self.encode_header()
 
-        # 8 bits of 0s
-        reserved = 0
-        # protocol field of IP header
-        ip_protocol = socket.IPPROTO_TCP
-        # length of TCP segment
-        tcp_length = len(checksumless_header) + len(self.data)
-
-        # static parts of IP header (https://www.baeldung.com/cs/pseudo-header-tcp)
-        pseudo_header = struct.pack('!4s4sBBH',
-            socket.inet_aton(str(source_ip)),
-            socket.inet_aton(str(dest_ip)),
-            reserved,
-            ip_protocol,
-            tcp_length
-        )
+        pseudo_header = self.create_pseudo_header(source_ip, dest_ip, len(checksumless_header))
 
         # construct packet with pseudo header to get checksum
         packet = pseudo_header + checksumless_header
@@ -71,6 +57,26 @@ class TCPPacket:
             packet += self.data
 
         return utils.calculate_checksum(packet)
+
+    
+    # create pseudo header
+    def create_pseudo_header(self, source_ip, dest_ip, header_len):
+        # 8 bits of 0s
+        reserved = 0
+        # protocol field of IP header
+        ip_protocol = socket.IPPROTO_TCP
+        # length of TCP segment
+        tcp_length = header_len + len(self.data)
+
+        # static parts of IP header (https://www.baeldung.com/cs/pseudo-header-tcp)
+        return struct.pack('!4s4sBBH',
+            socket.inet_aton(str(source_ip)),
+            socket.inet_aton(str(dest_ip)),
+            reserved,
+            ip_protocol,
+            tcp_length
+        )
+
 
     # encode packed header
     def encode_header(self):
@@ -99,12 +105,7 @@ class TCPPacket:
 
     # validate port and checksum
     def is_valid(self, dst_port, source_ip, dest_ip):
-        pseudo_header = struct.pack('!4s4sBBH',
-                                        socket.inet_aton(str(source_ip)),
-                                        socket.inet_aton(str(dest_ip)),
-                                        0,
-                                        socket.IPPROTO_TCP,  # Protocol,
-                                        self.data_offset * 4 + len(self.data))
+        pseudo_header = self.create_pseudo_header(source_ip, dest_ip, self.data_offset * 4)
         check = utils.calculate_checksum(pseudo_header + self.pack(source_ip, dest_ip))
 
         return self.destination_port == dst_port and check == 0
@@ -182,7 +183,8 @@ class TransportSocket:
         while not self.fin_received and not self.finned:
             received = self.receive_and_parse()
             if received:
-                message += received.decode('utf-8')
+                message += re.sub(r'\r\n\w*\r\n', '', received.decode('utf-8'))
+                # message += raw_resp
         return message
 
 
