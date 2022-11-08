@@ -1,8 +1,8 @@
-import random, constants, struct, socket, utils, threading, network_layer
+import constants, struct, socket, utils, network_layer, random, threading
 
 class TCPPacket:
     def __init__(self, src_port, dst_port, seq_no, ack_no, window, ack, syn, fin, data):
-        # set attributes for class based on TCP packet above
+        # set attributes for class based on TCP headers
         self.source_port = src_port
         self.destination_port = dst_port
         self.sequence_number = seq_no
@@ -29,9 +29,48 @@ class TCPPacket:
         self.checksum = 0
         # when URG flag set, indicate where data ends
         self.urgent_pointer = 0
-        self.options = b''
         self.data = data
 
+
+    # create TCP segment with checksum
+    def pack(self, source_ip, dest_ip):
+        self.checksum = self.get_checksum(source_ip, dest_ip)
+        
+        segment = self.encode_header()
+        if len(self.data) > 0:
+            segment += self.data
+
+        return segment
+
+
+    # get the checksum for this packet
+    def get_checksum(self, source_ip, dest_ip):
+        # reset checksum
+        self.checksum = 0
+        checksumless_header = self.encode_header()
+
+        # 8 bits of 0s
+        reserved = 0
+        # protocol field of IP header
+        ip_protocol = socket.IPPROTO_TCP
+        # length of TCP segment
+        tcp_length = len(checksumless_header) + len(self.data)
+
+        # static parts of IP header (https://www.baeldung.com/cs/pseudo-header-tcp)
+        pseudo_header = struct.pack('!4s4sBBH',
+            socket.inet_aton(str(source_ip)),
+            socket.inet_aton(str(dest_ip)),
+            reserved,
+            ip_protocol,
+            tcp_length
+        )
+
+        # construct packet with pseudo header to get checksum
+        packet = pseudo_header + checksumless_header
+        if len(self.data) > 0:
+            packet += self.data
+
+        return utils.calculate_checksum(packet)
 
     # encode packed header
     def encode_header(self):
@@ -58,83 +97,53 @@ class TCPPacket:
             struct.pack('!H', self.urgent_pointer)
 
 
-    # get the checksum for this packet
-    def get_checksum(self, source_ip, dest_ip):
-        checksumless_header = self.encode_header()
+    # validate port and checksum
+    def is_valid(self, dst_port, source_ip, dest_ip):
+        pseudo_header = struct.pack('!4s4sBBH',
+                                        socket.inet_aton(str(source_ip)),
+                                        socket.inet_aton(str(dest_ip)),
+                                        0,
+                                        socket.IPPROTO_TCP,  # Protocol,
+                                        self.data_offset * 4 + len(self.data))
+        check = utils.calculate_checksum(pseudo_header + self.pack(source_ip, dest_ip))
 
-        # 8 bits of 0s
-        reserved = 0
-        # protocol field of IP header
-        ip_protocol = socket.IPPROTO_TCP
-        # length of TCP segment
-        tcp_length = len(checksumless_header) + len(self.data)
+        return self.destination_port == dst_port and check == 0
 
-        # static parts of IP header (https://www.baeldung.com/cs/pseudo-header-tcp)
-        pseudo_header = struct.pack('!LLBBH',
-            source_ip,
-            dest_ip,
-            reserved,
-            ip_protocol,
-            tcp_length
-        )
-
-        # construct packet with pseudo header to get checksum
-        packet = pseudo_header + checksumless_header
-        if len(self.data) > 0:
-            packet += self.data
-
-        return utils.calculate_checksum(packet)
-
-
-    # create packet with checksum
-    def build(self, source_ip, dest_ip):
-        self.checksum = self.get_checksum(source_ip, dest_ip)
-        
-        packet = self.encode_header()
-        if len(self.data) > 0:
-            packet += self.data
-
-        return packet
-
-
-    # validate port
-    def is_valid_port(self, dst_port):
-        return self.destination_port == dst_port
 
     @staticmethod
     def unpack(packet):
-        unpacked_packet = struct.unpack('!HHLLBBH', packet[:16])
-        unpacked_checksum = struct.unpack('H', packet[16:18])
-        data = packet[20:]
+        unpacked_header = struct.unpack('!HHLLBBH', packet[:16])
+        [checksum] = struct.unpack('H', packet[16:18])
 
-        print("DATA: {}".format(data))
-
-        source_ip = unpacked_packet[0]
-        dest_ip = unpacked_packet[1]
-        sequence_number = unpacked_packet[2]
-        ack_number = unpacked_packet[3]
-        # don't need data offset
-        window = unpacked_packet[6]
+        source_port = unpacked_header[0]
+        dest_port = unpacked_header[1]
+        sequence_number = unpacked_header[2]
+        ack_number = unpacked_header[3]
+        data_offset = (unpacked_header[4]) >> 4
+        flags = unpacked_header[5]
+        window = unpacked_header[6]
         # don't need urgent_pointer
 
-        # don't need urg, psh, rst
-        flags = unpacked_packet[5]
-        ack = ((flags & 16) >> 4)
-        syn = ((flags & 2) >> 1)
-        fin = flags & 1
+        data = packet[data_offset * 4:]
 
-        packet = TCPPacket(source_ip, dest_ip, sequence_number, ack_number, window, ack, syn, fin, data)
-        packet.checksum = unpacked_checksum[0]
+        # don't need urg, psh, rst
+        fin = flags & 0x01
+        ack = (flags & 0x10) >> 4
+        syn = (flags & 0x02) >> 1
+
+        packet = TCPPacket(source_port, dest_port, sequence_number, ack_number, window, ack, syn, fin, data)
+        packet.checksum = checksum
 
         return packet
 
 
 # Keep track of in-flight packets
-class TCPPacketInFlight():
+class TCPPacketWrapper():
     def __init__(self, packet, ack_number):
         self.packet = packet
         self.ack_number = ack_number
         self.timer = threading.Timer(constants.TIMEOUT_SECONDS, TransportSocket.resend_packet, [self])
+
 
 
 # Custom TCP Socket
@@ -156,14 +165,8 @@ class TransportSocket:
     # connect with host and port
     def connect(self, socket_addr):
         host, self.dest_port = socket_addr
-        hostname = socket.gethostname()
-
-        print("socket.gethostbyname(hostname): {}".format(socket.gethostbyname(host)))
-
         self.ip_socket.connect(socket.gethostbyname(host))
-        print("CONNECTION DONE")
         self.send_syn()
-
 
 
     # if packet times out, resend it and reset cwnd
@@ -177,24 +180,19 @@ class TransportSocket:
     def receive_all(self):
         message = ''
         while not self.fin_received and not self.finned:
-            received = self.receive()
+            received = self.receive_and_parse()
             if received:
                 message += received.decode('utf-8')
         return message
 
 
-    # receive a single packet, filter out packets not destined to us
-    def receive(self):
+    # receive a single packet, filter invalid, handle flags, return data
+    def receive_and_parse(self):
         received = self.ip_socket.receive()
-        print("received: {}".format(received))
-        # if self.dest_port == self.source_port:
-        return self.parse_packet(received)
-        # return None
+        packet = TCPPacket.unpack(received)
 
-    
-    # parse packet for flags, return data if not fin
-    def parse_packet(self, data):
-        packet = TCPPacket.unpack(data)
+        if not packet.is_valid(self.source_port, self.ip_socket.source_ip_address, self.ip_socket.dest_ip_address):
+            return
 
         if not self.connected:
             self.force_connect(packet)
@@ -205,7 +203,7 @@ class TransportSocket:
             packet.sequence_number > self.ack_number + constants.MAX_INT16:
             return
 
-        # unexpected packet will be added to buffer 
+        # unexpected packet (out of order) will be added to buffer 
         if self.ack_number < packet.sequence_number:
             self.receive_buffer.append(packet)
             self.receive_buffer.sort(key = lambda packet: (self.get_next_sequence_no(packet.sequence_number, -self.ack_number)))
@@ -288,16 +286,12 @@ class TransportSocket:
         data_len = 1 if packet.syn == 1 or packet.fin == 1 else len(packet.data)
         ack_number = self.get_next_sequence_no(packet.sequence_number, data_len)
 
-        inflight_packet = TCPPacketInFlight(packet, ack_number)
+        inflight_packet = TCPPacketWrapper(packet, ack_number)
 
         if append_window:
             self.inflight_packets.append(inflight_packet)
 
-        # data = inflight_packet.packet.build(
-        #     self.ip_socket.source_ip_address,
-        #     self.ip_socket.dest_ip_address
-        # )
-        data = inflight_packet.packet.build(
+        data = inflight_packet.packet.pack(
             self.ip_socket.source_ip_address,
             self.ip_socket.dest_ip_address
         )
@@ -333,7 +327,7 @@ class TransportSocket:
         print("SEND_SYN2")
         while not self.connected:
             print("HERE")
-            self.receive()
+            self.receive_and_parse()
 
 
     
@@ -357,7 +351,7 @@ class TransportSocket:
 
         while not self.fin_received:
             # drain queue, throw away data
-            self.receive()
+            self.receive_and_parse()
 
         self.ip_socket.close()
         return
