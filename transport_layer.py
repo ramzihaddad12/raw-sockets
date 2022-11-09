@@ -1,4 +1,4 @@
-import constants, struct, socket, utils, network_layer, random, threading, re
+import constants, struct, socket, utils, network_layer, random, threading
 
 class TCPSegment:
     def __init__(self, src_port, dst_port, seq_no, ack_no, window, ack, syn, fin, data):
@@ -184,7 +184,7 @@ class TransportSocket:
         while not self.fin_received and not self.finned:
             received = self.receive_and_parse()
             if received:
-                message += re.sub(rb'\r\n\w*\r\n', b'', received)
+                message += received
         return message
 
 
