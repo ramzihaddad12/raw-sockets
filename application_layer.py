@@ -44,8 +44,8 @@ Host: {parsed.hostname}{constants.END}"""
 # Filter out headers + non-related html bytes
 def filter_resp(raw_resp):
     headers_end = raw_resp.find(b'\r\n\r\n')
-    resp = raw_resp[headers_end + 2:]
-    resp = re.sub(rb'\r\n\r\n\w*\r\n|\r\n\w*\r\n\r\n|\r\n\w*\r\n', b'', resp).lstrip()
+    resp = raw_resp[headers_end:]
+    resp = re.sub(rb'\r\n\r\n\w*\r\n|\r\n\w*\r\n\r\n|\r\n\w*\r\n', b'', resp)
     return resp
 
 
