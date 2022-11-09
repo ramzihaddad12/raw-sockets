@@ -1,4 +1,5 @@
-import constants, struct, socket, utils, network_layer, random, threading
+import constants, struct, socket, utils, random, threading
+from network_layer import IPSocket
 
 class TCPSegment:
     def __init__(self, src_port, dst_port, seq_no, ack_no, window, ack, syn, fin, data):
@@ -102,7 +103,7 @@ class TCPSegment:
         )
 
 
-    # validate port and checksum
+    # validate port and checksum for incoming tcp packets
     def is_valid(self, dst_port, source_ip, dest_ip):
         pseudo_header = self.create_pseudo_header(source_ip, dest_ip, self.data_offset * 4)
         checksum = utils.calculate_checksum(pseudo_header + self.assemble(source_ip, dest_ip))
@@ -113,9 +114,11 @@ class TCPSegment:
     # unpack assembled tcp segment 
     @staticmethod
     def disassemble(assembled_segment):
+        # unpack assembled tcp segment
         unpacked_header = struct.unpack('!HHLLBBH', assembled_segment[:16])
         [checksum] = struct.unpack('H', assembled_segment[16:18])
 
+        # unpack attributes
         source_port = unpacked_header[0]
         dest_port = unpacked_header[1]
         sequence_number = unpacked_header[2]
@@ -124,17 +127,15 @@ class TCPSegment:
         flags = unpacked_header[5]
         window = unpacked_header[6]
         # don't need urgent_pointer
-
         data = assembled_segment[data_offset * 4:]
 
-        # don't need urg, psh, rst
         fin = flags & 0x01
         ack = (flags & 0x10) >> 4
         syn = (flags & 0x02) >> 1
 
+        # build tcp segment and return
         segment = TCPSegment(source_port, dest_port, sequence_number, ack_number, window, ack, syn, fin, data)
         segment.checksum = checksum
-
         return segment
 
 
@@ -151,15 +152,24 @@ class TCPSegmentWrapper():
 # Custom TCP Socket
 class TransportSocket:
     def __init__(self):
-        self.ip_socket = network_layer.IPSocket()
+        # use custom IP socket to send/receive data to/from
+        self.ip_socket = IPSocket()
+
+        # keep track of ports
         self.source_port = random.randint(0, constants.MAX_INT16)
         self.destination_port = 0
+
+        # state of connection
         self.connected = False
         self.finned = False
         self.fin_received = False
         self.cwnd = 1
+
+        # keep track of seq/ack numbers
         self.sequence_number = random.randint(0, constants.MAX_INT32)
         self.ack_number = 0
+
+        # keep track of inflight packets (retransmission) and unexpected packets
         self.inflight_packets = []
         self.receive_buffer = []
         
@@ -182,9 +192,9 @@ class TransportSocket:
     def receive_all(self):
         message = b''
         while not self.fin_received and not self.finned:
-            received = self.receive_and_parse()
-            if received:
-                message += received
+            received_data = self.receive_and_parse()
+            if received_data:
+                message += received_data
         return message
 
 
@@ -279,6 +289,7 @@ class TransportSocket:
             else:
                 break
 
+        # send ack, return data for ACKed packets
         self.send_ack()
         return data   
 
@@ -313,7 +324,7 @@ class TransportSocket:
         return (sequence_number + data_len) % constants.MAX_INT32
 
     
-    # build basic TCP packet without data
+    # build basic TCP packet without data (used to send ack/syn/fin)
     def basic_tcpsegment_builder(self, ack, syn, fin):
         return TCPSegment(
             self.source_port, 
@@ -356,9 +367,10 @@ class TransportSocket:
             self.send_fin()
             self.finned = True
 
+        # drain queue, throw away data
         while not self.fin_received:
-            # drain queue, throw away data
             self.receive_and_parse()
 
+        # close ip socket
         self.ip_socket.close()
         return
