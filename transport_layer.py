@@ -266,6 +266,7 @@ class TransportSocket:
         self.ack_number += len(packet.data)
         data = packet.data
 
+        # handle packets in buffer
         for packet_buff in self.receive_buffer:
             if packet_buff.sequence_number == self.ack_number:
                 data += packet_buff.data
@@ -275,7 +276,8 @@ class TransportSocket:
                 self.check_fin(packet_buff)
                 if self.fin_received:
                     return data
-            break # why?
+            else:
+                break
 
         self.send_ack()
         return data   
@@ -285,6 +287,7 @@ class TransportSocket:
     def send_data(self, data):
         packet = TCPPacket(self.source_port, self.dest_port, self.sequence_number, self.ack_number, self.cwnd, 1, 0, 0, data)
         self.send(packet)
+
 
     # send the given packet
     def send(self, packet, append_window = True):
@@ -359,7 +362,3 @@ class TransportSocket:
 
         self.ip_socket.close()
         return
-    
-
-
-    

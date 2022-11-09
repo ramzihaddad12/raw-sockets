@@ -10,9 +10,8 @@ def download(url):
     sock.close()
 
     file = open(get_filename(url), 'wb')
-    headers_end = resp.rfind(b'\r\n')
-    if headers_end == len(resp) - 2:
-        headers_end = resp.rfind(b'\r\n', 0, headers_end)
+    resp = resp.strip()
+    headers_end = resp.rfind(b'\r\n') + 2
     file.write(resp[headers_end:])
     file.close()
 
