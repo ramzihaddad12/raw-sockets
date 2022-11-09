@@ -79,10 +79,6 @@ class EthernetSocket():
 	def send_data(self, data, ether_type = ETH_P_IP):
 		# build ethernet header 
 		ethernet_header = struct.pack("!6s6sH", self.dest_mac, self.source_mac, ether_type)
-		print("SENDING: " )
-		print(self.source_mac)
-		print(ethernet_header)
-		print(data)
 		if len(data) >= MIN_ETHERNET_SIZE:
 			self.socket_sender.sendto(ethernet_header + data, (self.interface,0))
 
@@ -102,9 +98,6 @@ class EthernetSocket():
 			packet_dest_mac = struct.unpack("!6s6sH", received_data[:14])[0]
 			packet_source_mac = struct.unpack("!6s6sH", received_data[:14])[1]
 			packet_ether_type = struct.unpack("!6s6sH", received_data[:14])[2]
-
-			# print("packet_dest_mac: {}".format(packet_dest_mac))
-			# print("self.source_mac: {}".format(self.source_mac))	
 
 			# check if the packet corresponds to the source MAC address (check if the packet is meant to the local machine)
 			if packet_dest_mac != self.source_mac or ether_type != packet_ether_type :
@@ -148,7 +141,6 @@ class EthernetSocket():
 		
 		# once ARP packet is received, we now know the destination MAC address and we can change it from the broadcast MAC to the needed one
 		self.dest_mac = response["SHA"]
-		print("self.dest_mac: {}".format(self.dest_mac))
 	
 	# Function to close sender & receiving sockets
 	def close_all(self):

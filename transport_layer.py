@@ -322,13 +322,9 @@ class TransportSocket:
     # send a syn packet and get response
     def send_syn(self):
         syn_packet = self.basic_tcppacket_builder(0, 1, 0)
-        print("SEND_SYN")
         self.send(syn_packet)
-        print("SEND_SYN2")
         while not self.connected:
-            print("HERE")
             self.receive_and_parse()
-
 
     
     # send a fin packet

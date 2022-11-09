@@ -20,7 +20,6 @@ def download(url):
 
 # Create custom TCP socket and connect
 def socket_connect(host, port=80):
-    print("HOST: {}".format(host))
     sock = TransportSocket()
     sock.connect((host, port))
     return sock
