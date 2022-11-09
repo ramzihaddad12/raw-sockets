@@ -1,4 +1,4 @@
-import constants, struct, socket, utils, network_layer, random, threading
+import constants, struct, socket, utils, network_layer, random, threading, re
 
 class TCPPacket:
     def __init__(self, src_port, dst_port, seq_no, ack_no, window, ack, syn, fin, data):
@@ -180,11 +180,11 @@ class TransportSocket:
 
     # receive all data until fin observed
     def receive_all(self):
-        message = ''
+        message = b''
         while not self.fin_received and not self.finned:
             received = self.receive_and_parse()
             if received:
-                message += received.decode('utf-8')
+                message += re.sub(rb'\r\n\w*\r\n', b'', received)
         return message
 
 
@@ -329,7 +329,7 @@ class TransportSocket:
     def send_syn(self):
         syn_packet = self.basic_tcppacket_builder(0, 1, 0)
         self.send(syn_packet)
-        
+
         # discard other packets
         while not self.connected:
             self.receive_and_parse()

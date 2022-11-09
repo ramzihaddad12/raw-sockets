@@ -1,4 +1,4 @@
-import sys, re, constants
+import re, constants
 from urllib.parse import urlparse
 from transport_layer import TransportSocket
 
@@ -9,13 +9,12 @@ def download(url):
     resp = send_get_request(sock, url)
     sock.close()
 
-    if get_http_status(resp) == 200:
-        file = open(get_filename(url), 'w')
-        body_start = resp.find(constants.END) + 4
-        file.write(resp[body_start:])
-        file.close()
-    else:
-        sys.exit('Unable to retrieve HTML content for non-200 responses.')
+    file = open(get_filename(url), 'wb')
+    headers_end = resp.rfind(b'\r\n')
+    if headers_end == len(resp) - 2:
+        headers_end = resp.rfind(b'\r\n', 0, headers_end)
+    file.write(resp[headers_end:])
+    file.close()
 
 
 # Create custom TCP socket and connect
