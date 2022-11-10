@@ -13,6 +13,8 @@ def download(url):
     # open file and write bytes
     file = open(get_filename(url), 'wb')
     file.write(filter_resp(raw_resp))
+
+    
     file.close()
 
 
@@ -43,10 +45,26 @@ Host: {parsed.hostname}{constants.END}"""
 
 # Filter out headers + non-related html bytes
 def filter_resp(raw_resp):
+
     headers_end = raw_resp.find(b'\r\n\r\n')
-    resp = raw_resp[headers_end:]
-    resp = re.sub(rb'\r\n\r\n\w*\r\n|\r\n\w*\r\n\r\n|\r\n\w*\r\n', b'', resp)
-    return resp
+    body = raw_resp[headers_end + 4:]
+    
+    filtered_resp = b''
+    
+    index = body.find(b'\r\n')
+    chunk_size = int(body[:index], 16)
+
+    while chunk_size != 0 :
+        filtered_resp += body[index + 2: index + 2 + chunk_size]
+        body = body[index + 2 + chunk_size + 2: ]
+        
+        index = body.find(b'\r\n')
+        chunk_size = int(body[:index], 16)
+    ##
+    # headers_end = raw_resp.find(b'\r\n\r\n')
+    # resp = raw_resp[headers_end:]
+    # resp = re.sub(rb'\r\n\r\n\w*\r\n|\r\n\w*\r\n\r\n|\r\n\w*\r\n', b'', resp)
+    return filtered_resp
 
 
 # Get filename based on url
