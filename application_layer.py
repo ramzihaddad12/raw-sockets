@@ -1,26 +1,23 @@
-import sys, re, constants
+import constants, re
 from urllib.parse import urlparse
 from transport_layer import TransportSocket
 
 # Write http response to a file
 # URL is given to determine file name
 def download(url):
+    # get resp from url with custom TCP socket
     sock = socket_connect(urlparse(url).hostname)
-    resp = send_get_request(sock, url)
+    raw_resp = send_get_request(sock, url)
     sock.close()
 
-    if get_http_status(resp) == 200:
-        file = open(get_filename(url), 'w')
-        body_start = resp.find(constants.END) + 4
-        file.write(resp[body_start:])
-        file.close()
-    else:
-        sys.exit('Unable to retrieve HTML content for non-200 responses.')
+    # open file and write bytes
+    file = open(get_filename(url), 'wb')
+    file.write(filter_resp(raw_resp))
+    file.close()
 
 
 # Create custom TCP socket and connect
 def socket_connect(host, port=80):
-    print("HOST: {}".format(host))
     sock = TransportSocket()
     sock.connect((host, port))
     return sock
@@ -44,13 +41,13 @@ Host: {parsed.hostname}{constants.END}"""
     return get_request.encode('utf-8')
 
 
-# Find status for the given response
-def get_http_status(resp):
-    status_pattern = re.compile(r'HTTP/1.1 ([0-9]{3})')
-    try:
-        return int(status_pattern.findall(resp)[0])
-    except IndexError:
-        return 500
+# Filter out headers + non-related html bytes
+def filter_resp(raw_resp):
+    headers_end = raw_resp.find(b'\r\n\r\n')
+    resp = raw_resp[headers_end:]
+    resp = re.sub(rb'\r\n\r\n\w*\r\n|\r\n\w*\r\n\r\n|\r\n\w*\r\n', b'', resp)
+    return resp
+
 
 # Get filename based on url
 # if url doesn't include a path, return index.html
