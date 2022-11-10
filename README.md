@@ -21,14 +21,18 @@ Our high level approach was to split the work between the individual layers (app
 #### IP Features
 - Validating checksums when receiving packets
 - Creating IP datagram with version, header length, total length, protocol ID, and checksum
+
 ### Ethernet features
-- Sending and receiving packets via ethernet
+- Getting the source MAC address and the interface for the local machine
+- Sending a broadcast ethernet message (via the broadcast MAC address) to find the destination MAC address, initially
+- Sending and receiving ARP packets via ethernet by adding and removing the ethernet header 
 
 ## Challenges Faced
+- Handling bytes and hex formats
 - Validating and building checksums
 - Correctly shifting and `operator&` bits to get the data we wanted when unpacking
 - Learning how the IP pseudoheader works to calculate the checksum
-- Learning about how ARP packets are structured and how to pack and unpack them 
+- Learning about how ARP packets are structured and how to pack and unpack them (source used: https://en.wikipedia.org/wiki/Address_Resolution_Protocol)
 - Sending and receiving packets successfully through ethernet
 - Extracting MAC addresses and the machine interface
 
