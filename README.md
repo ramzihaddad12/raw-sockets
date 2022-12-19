@@ -1,4 +1,4 @@
-# cs5700-project3-python3
+# Raw Sockets
 
 ## High Level Approach
 Our high level approach was to split the work between the individual layers (application, transport, network, and data link). 
